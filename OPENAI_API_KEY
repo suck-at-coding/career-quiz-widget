@@ -1,0 +1,38 @@
+// For Netlify: /netlify/functions/generate-report.js
+const { Configuration, OpenAIApi } = require("openai");
+const config = new Configuration({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAIApi(config);
+
+exports.handler = async (event) => {
+  try {
+    const { profile } = JSON.parse(event.body);
+
+    // Build a prompt
+    const prompt = `
+The user’s assessment profile (scores 1–5):
+${Object.entries(profile).map(([k,v])=>`- ${k}: ${v}`).join('\n')}
+
+Suggest 5 careers that best match this profile. For each, output a JSON object with:
+"title": career name,
+"why": 2‑sentence insight why this suits the user,
+"skills": array of the top 3 skills required.
+
+Return a JSON array.
+    `;
+
+    const res = await openai.createChatCompletion({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 600
+    });
+
+    // Parse the assistant’s reply
+    const text = res.data.choices[0].message.content;
+    const careers = JSON.parse(text);
+    return { statusCode: 200, body: JSON.stringify(careers) };
+
+  } catch (err) {
+    console.error(err);
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+  }
+};
